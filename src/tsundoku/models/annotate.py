@@ -160,8 +160,14 @@ def main(experiment, group):
         experiment_config = toml.load(f)
         logging.info(f"{experiment_config}")
 
+    if not group in experiment_config:
+        experiment_config[group] = {}
+
+    with open(Path(config["path"]["config"]) / "groups" / f"{group}.toml") as f:
+        group_config = toml.load(f)
+
     print(experiment_config[group])
-    group_options = set(experiment_config[group]["order"])
+    group_options = set(experiment_config[group].get("order", group_config.keys()))
     try:
         group_options.remove("undisclosed")
     except KeyError:

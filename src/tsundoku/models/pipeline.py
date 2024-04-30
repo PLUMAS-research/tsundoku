@@ -27,30 +27,15 @@ def search_tokens(
     for group, meta in model_config.items():
         try:
             group_tokens = vocabulary[
-                vocabulary["token"].isin(meta[token_type]["must_have"])
+                vocabulary["token"].isin(meta[token_type])
             ]
         except KeyError:
             print(f"no key: {token_type}")
             continue
 
-        try:
-            non_group_tokens = vocabulary[
-                vocabulary["token"].isin(meta[token_type]["cant_have"])
-            ]
-        except KeyError:
-            non_group_tokens = None
-            print(f"no key: {token_type}")
-
         group_flag = to_array(matrix[:, group_tokens["token_id"].values].sum(axis=1))
-        if non_group_tokens is not None:
-            non_group_flag = to_array(
-                matrix[:, non_group_tokens["token_id"].values].sum(axis=1)
-            )
-            group_user_ids[group] = np.where((group_flag > 0) & (non_group_flag == 0))[
-                0
-            ]
-        else:
-            group_user_ids[group] = np.where(group_flag > 0)[0]
+
+        group_user_ids[group] = np.where(group_flag > 0)[0]
 
         
 
@@ -133,7 +118,7 @@ def prepare_features(
         user_ids,
         "user.domains",
         "user.domains",
-        "domain",
+        "tweet_links",
         index="domain",
     )
 
@@ -159,7 +144,7 @@ def prepare_features(
         user_ids,
         "user.description_tokens",
         "user.description_tokens",
-        "description_token",
+        "description_tokens",
         skip_numeric_tokens=skip_numeric_tokens,
     )
 
@@ -170,7 +155,7 @@ def prepare_features(
         user_ids,
         "user.name_tokens",
         "user.name_tokens",
-        "user_name",
+        "username_tokens",
     )
 
     (
@@ -185,7 +170,7 @@ def prepare_features(
         user_ids,
         "user.profile_domains",
         "user.profile_domains",
-        "profile_domain",
+        "profile_links",
         index="user.main_domain",
     )
 
@@ -275,12 +260,12 @@ def prepare_features(
 
     # add manually annotated accounts from config
     for key, values in config.items():
-        if not "account_ids" in values:
+        if not "account_ids" in values or not values['account_ids']:
             print(f"{key} does not have account ids")
             continue
 
-        tagged_ids = set(values["account_ids"]["known_users"])
-        tagged_ids = set(values["account_ids"]["known_users"]) & set(
+        tagged_ids = set(values["account_ids"])
+        tagged_ids = set(values["account_ids"]) & set(
             user_ids.index.values
         )
         print(f"{key} has {len(tagged_ids)} valid account ids")

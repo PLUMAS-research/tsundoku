@@ -41,7 +41,7 @@ def main(experiment, group, max_group_labels):
         "project"
     ]
     logger.info(str(config))
-    dask.config.set(pool=ThreadPool(int(config.get("n_jobs", 2))))
+    dask.config.set(pool=ThreadPool(int(config.get('settings', {}).get("io_n_jobs", 2))))
 
     source_path = Path(config["path"]["data"]) / "raw"
     experiment_file = Path(config["path"]["config"]) / "experiments.toml"
@@ -91,17 +91,25 @@ def main(experiment, group, max_group_labels):
     with open(Path(config["path"]["config"]) / "groups" / f"{group_key}.toml") as f:
         group_config = toml.load(f)
 
-    group_annotations_file = Path(config["path"]["config"]) / "groups" / f"{group_key}.annotations.csv"
+    print(group_config)
+
+    group_annotations_file = (
+        Path(config["path"]["config"]) / "groups" / f"{group_key}.annotations.csv"
+    )
 
     if group_annotations_file.exists():
-        logging.info('Reading annotations...')
+        logging.info("Reading annotations...")
         group_annotations = pd.read_csv(group_annotations_file)
-        
+
         for key in group_config.keys():
-            annotated_user_ids = group_annotations[group_annotations['class'] == key]
+            annotated_user_ids = group_annotations[group_annotations["class"] == key]
             if not annotated_user_ids.empty:
-                logging.info(f'# of annotated "{key}" accounts: {len(annotated_user_ids)}')
-                group_config[key]['account_ids']['known_users'].extend(annotated_user_ids['user.id'].unique()) 
+                logging.info(
+                    f'# of annotated "{key}" accounts: {len(annotated_user_ids)}'
+                )
+                group_config[key].get("account_ids", []).extend(
+                    annotated_user_ids["user.id"].unique()
+                )
 
     user_ids = (
         dd.read_parquet(processed_path / "user.elem_ids.parquet")
@@ -112,8 +120,21 @@ def main(experiment, group, max_group_labels):
 
     relevance_path = processed_path / "relevance.classification.predictions.parquet"
 
-    xgb_parameters = experiment_config[group_key]["xgb"]
-    pipeline_config = experiment_config[group_key]["pipeline"]
+    if not group_key in experiment_config:
+        experiment_config[group_key] = {}
+
+    # use default parameters if not provided
+    xgb_parameters = experiment_config[group_key].get("xgb", {
+        'learning_rate': 0.25,
+        'max_depth': 3,
+        'subsample': 0.95,
+        'n_estimators': 100,
+        'max_delta_step': 1,
+        'n_jobs': config.get('settings', {}).get("n_jobs", 2),
+        'random_state': 42,
+        'tree_method': 'hist'
+    })
+    pipeline_config = experiment_config[group_key].get("pipeline", {})
 
     if "allow_list" in experiment_config[group_key]:
         allow_list_ids = experiment_config[group_key]["allow_list"].get(
@@ -164,8 +185,8 @@ def main(experiment, group, max_group_labels):
     for key, meta in group_config.items():
         group_re = None
         try:
-            print(f'location patterns for {key}, {meta["location"]["patterns"]}')
-            group_re = re.compile("|".join(meta["location"]["patterns"]), re.IGNORECASE)
+            print(f'location patterns for {key}, {meta["location_patterns"]}')
+            group_re = re.compile("|".join(meta["location_patterns"]), re.IGNORECASE)
         except KeyError:
             print(f"no location patterns in {key}")
             continue
@@ -183,10 +204,7 @@ def main(experiment, group, max_group_labels):
             if not "account_ids" in meta:
                 meta["account_ids"] = dict()
 
-            if not "known_users" in meta:
-                meta["account_ids"]["known_users"] = list(group_ids)
-            else:
-                meta["account_ids"]["known_users"].extend(group_ids)
+            meta["account_ids"].extend(group_ids)
         else:
             # use them as labels
             labels[key].loc[group_ids] = 1
@@ -261,11 +279,11 @@ def main(experiment, group, max_group_labels):
         xgb_parameters,
         allowed_user_ids=allow_list_ids,
         allowed_users_class=allow_id_class,
-        early_stopping_rounds=pipeline_config["early_stopping_rounds"],
-        eval_fraction=pipeline_config["eval_fraction"],
-        threshold_offset_factor=pipeline_config["threshold_offset_factor"],
+        early_stopping_rounds=pipeline_config.get("early_stopping_rounds", 10),
+        eval_fraction=pipeline_config.get("eval_fraction", 0.05),
+        threshold_offset_factor=pipeline_config.get("threshold_offset_factor", 0.10),
         skip_numeric_tokens=skip_numeric_tokens,
-        max_group_labels=max_group_labels
+        max_group_labels=max_group_labels,
     )
 
     current_timer = t.stop()

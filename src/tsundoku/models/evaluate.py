@@ -157,8 +157,18 @@ def main(experiment, group, n_splits):
             # use them as labels
             labels[key].loc[group_ids] = 1
 
-    xgb_parameters = experiment_config[group]["xgb"]
-    pipeline_config = experiment_config[group]["pipeline"]
+    xgb_parameters = experiment_config[group].get("xgb", {
+        'learning_rate': 0.25,
+        'max_depth': 3,
+        'subsample': 0.95,
+        'n_estimators': 100,
+        'max_delta_step': 1,
+        'n_jobs': config.get('settings', {}).get("n_jobs", 2),
+        'random_state': 42,
+        'tree_method': 'hist'
+    })
+
+    pipeline_config = experiment_config[group].get("pipeline", {})
 
     X, labels, feature_names_all = prepare_features(
         processed_path, group_config, user_ids, labels
@@ -171,7 +181,7 @@ def main(experiment, group, n_splits):
         X,
         labels,
         group,
-        training_eval_fraction=pipeline_config["eval_fraction"],
+        training_eval_fraction=pipeline_config.get("eval_fraction", 0.05),
         n_splits=n_splits,
     )
     logging.info(f"{str(outputs)}")

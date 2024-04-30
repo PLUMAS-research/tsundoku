@@ -12,7 +12,7 @@ from dotenv import find_dotenv, load_dotenv
 from sklearn.ensemble import IsolationForest
 
 from tsundoku.utils.files import read_toml
-from aves.models.network import Network
+from tsundoku.models.network import Network
 
 
 @click.command()

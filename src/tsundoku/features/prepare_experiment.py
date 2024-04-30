@@ -15,7 +15,7 @@ from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from scipy.sparse import dok_matrix, save_npz, csr_matrix
 from dotenv import find_dotenv, load_dotenv
-from aves.models.network import Network
+from tsundoku.models.network import Network
 
 from tsundoku.utils.files import read_toml, write_parquet
 from tsundoku.utils.urls import get_domain
@@ -43,6 +43,7 @@ def main(experiment, overwrite):
     ]
     logger.info(str(config))
     dask.config.set(pool=ThreadPool(int(config.get("n_jobs", 2))))
+    dask.config.set({"dataframe.convert-string": False})
 
     source_path = Path(config["path"]["data"]) / "raw"
     experiment_file = Path(config["path"]["config"]) / "experiments.toml"

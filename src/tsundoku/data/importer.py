@@ -212,7 +212,7 @@ class TweetImporter(object):
             stopwords = set(read_list(stopwords_file))
             self.logger.info(f"#stopwords: {len(stopwords)}")
 
-        @lru_cache(maxsize=dtm_config.get("lru_size", 50))
+        @lru_cache(maxsize=dtm_config.get("lru_size", 1000))
         def _tokenize(x):
             return tokenize(x, ngram_range=ngram_range, stopwords=stopwords)
 
@@ -289,7 +289,7 @@ class TweetImporter(object):
         pq.write_table(df, target_file, use_dictionary=False)
         return df.num_rows
 
-    def import_date(self, date, pattern, source_path, periods=24 * 6, freq="10t"):
+    def import_date(self, date, pattern, source_path, periods=24 * 6, freq="10min"):
         date_str = date
         date = pd.to_datetime(date)
 

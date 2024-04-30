@@ -4,7 +4,7 @@ from cytoolz import sliding_window
 from emoji.unicode_codes import EMOJI_DATA
 from gensim.utils import deaccent as gensim_deaccent
 from nltk.tokenize.casual import casual_tokenize
-from aves.features.twokenize import tokenize as ark_twokenize
+from tsundoku.features.twokenize import tokenize as ark_twokenize
 
 from tsundoku.utils.re import PUNCTUATION_RE, URL_RE
 

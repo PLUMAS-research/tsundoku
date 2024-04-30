@@ -34,6 +34,7 @@ def main(date, days, overwrite):
     ]
     logger.info(str(config))
     dask.config.set(pool=ThreadPool(int(config["environment"].get("n_jobs", 2))))
+    dask.config.set({"dataframe.convert-string": False})
 
     source_path = Path(config["path"]["data"]) / "raw"
 
@@ -133,7 +134,8 @@ def compute_user_metrics(tweets, target_path, overwrite):
     if overwrite or not (target_path / "user_name_vocabulary.parquet").exists():
         if users is None:
             users = dd.read_parquet(target_path / "unique_users.parquet")
-        (
+        
+        user_name_vocabulary = (
             users[["user.id", "user.name_tokens"]]
             .explode("user.name_tokens")
             .rename(columns={"user.name_tokens": "token"})
@@ -146,13 +148,13 @@ def compute_user_metrics(tweets, target_path, overwrite):
             .reset_index()
         )
 
-        write_parquet(users, target_path / "user_name_vocabulary.parquet")
+        write_parquet(user_name_vocabulary, target_path / "user_name_vocabulary.parquet")
 
     if overwrite or not (target_path / "user_description_vocabulary.parquet").exists():
         if users is None:
             users = dd.read_parquet(target_path / "unique_users.parquet")
 
-        (
+        user_description_vocabulary = (
             users[["user.id", "user.description_tokens"]]
             .explode("user.description_tokens")
             .rename(columns={"user.description_tokens": "token"})
@@ -165,7 +167,7 @@ def compute_user_metrics(tweets, target_path, overwrite):
             .reset_index()
         )
 
-        write_parquet(users, target_path / "user_description_vocabulary.parquet")
+        write_parquet(user_description_vocabulary, target_path / "user_description_vocabulary.parquet")
 
 
 def compute_tweet_metrics(tweets, target_path, overwrite):

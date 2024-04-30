@@ -7,11 +7,13 @@ import graph_tool.topology
 import pandas as pd
 import pyarrow as pa
 
-from aves.models.network import Network
+from tsundoku.models.network import Network
 
 from tsundoku.utils.users import USERS_DTYPES
 from tsundoku.utils.files import write_parquet
 
+# otherwise, pyarrow gives an error when saving user data
+dask.config.set({"dataframe.convert-string": False})
 
 def read_daily_stats(source_folder, user_ids):
     date = os.path.basename(source_folder)
@@ -211,18 +213,26 @@ def consolidate_users(processed_path, target_path, aggregation_group, overwrite=
 
         logging.info(f"prediction type {group_name} found!")
 
-    users = users.join(user_predictions, how="inner").reset_index()
+    if not user_predictions is None:
+        users = users.join(user_predictions, how="inner")
+        
+    users = users.reset_index()
 
     logging.info(f"users: #valid: {len(users)}, #invalid {len(invalid_users)}")
     logging.info(f"user consolidation with groups -> {users_target_path}")
+
+    print(users['user.description_tokens'].head())
+    print(schema)
 
     users.to_parquet(
         target_path,
         name_function=lambda i: f"user.consolidated_groups{f'_{i}' if i != 0 else ''}.parquet",
         engine="pyarrow",
         schema=schema,
-        use_dictionary=False,
+        use_dictionary=False
     )
+
+    print(users.head())
 
     return users["user.id"].compute().values
 

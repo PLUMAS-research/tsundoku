@@ -1,7 +1,7 @@
 channels:
   - conda-forge
 dependencies:
-  - python>=3.8
+  - python
   - configparser
   - ipykernel
   - pip
@@ -12,9 +12,8 @@ dependencies:
   - cytoolz
   - python-rapidjson
   - gensim
-  - matplotlib==3.7.1
+  - matplotlib
   - seaborn
-  - umap-learn
   - pyarrow
   - graphviz
   - pydot
@@ -23,11 +22,6 @@ dependencies:
   - wordcloud
   - graph-tool
   - jupyter
-  - gdal
-  - geopandas
-  - libpysal
-  - mapclassify
-  - statsmodels
   - networkx
   - spectra
   - descartes
@@ -35,7 +29,6 @@ dependencies:
   - nltk
   - KDEpy
   - xlrd
-  - contextily
   - pip:
     - pytz
     - ftfy
@@ -45,8 +38,6 @@ dependencies:
     - scattertext
     - powerlaw
     - shifterator
-    - git+https://github.com/zorzalerrante/scikit-fusion
-    - git+https://github.com/zorzalerrante/aves
     - pymunk
     - emoji
     - bezier

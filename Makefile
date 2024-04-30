@@ -119,6 +119,16 @@ install-torch-cpu:
 	conda run --name '$(ENV_NAME)' pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
 	conda run --name '$(ENV_NAME)' pip install transformers
 
+## delete conda environment
+conda-delete-env:
+ifeq (True,$(HAS_CONDA))
+	@printf ">>> Deleting '$(ENV_NAME)' conda environment. This could take a few minutes ...\n\n"
+	@$(CONDA) env remove --name $(ENV_NAME)
+	@printf ">>> Done.\n\n"
+else
+	@printf ">>> conda command not found. Check out that conda has been installed properly."
+endif
+
 
 #################################################################################
 # PROJECT RULES                                                                 #
