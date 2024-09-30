@@ -5,6 +5,7 @@ from functools import lru_cache
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
+import os 
 
 import ahocorasick
 import dask
@@ -33,6 +34,8 @@ class TweetImporter(object):
 
         logging.info(self.config)
 
+        self.project_path = Path(os.path.dirname(self.config_file))
+
         self.configure_accounts()
         self.configure_locations()
         self.configure_language()
@@ -41,7 +44,7 @@ class TweetImporter(object):
 
         self.timezone = pytz.timezone(self.config["content"].get("timezone"))
         dask.config.set(
-            pool=ThreadPool(int(self.config["environment"].get("n_jobs", 1)))
+            pool=ThreadPool(int(self.config["settings"].get("n_jobs", 1)))
         )
 
     def filter_dataframe(self, df):
@@ -150,7 +153,7 @@ class TweetImporter(object):
 
         if term_files is not None:
             term_files = list(
-                map(lambda x: self.config["path"].get("config") + "/" + x, term_files)
+                map(lambda x: self.project_path / x, term_files)
             )
             self.terms["patterns"] = []  # build_re_from_files(term_files)
             for filename in term_files:
@@ -202,7 +205,7 @@ class TweetImporter(object):
         stopwords_file = dtm_config.get("stopwords_file", None)
 
         if stopwords_file is not None:
-            stopwords_file = self.config["path"].get("config") + "/" + stopwords_file
+            stopwords_file = self.project_path / stopwords_file
             self.logger.info(f"stopwords file: {stopwords_file}")
 
         if stopwords_file is None:
@@ -219,7 +222,7 @@ class TweetImporter(object):
         self.tokenize = _tokenize
 
     def data_path(self):
-        return Path(self.config["path"].get("data"))
+        return Path(self.config["settings"].get("data_path"))
 
     def parse_date_data_to_parquet(
         self, date, pattern, source_path, target_path, periods=24 * 6, freq="10t"
@@ -350,7 +353,7 @@ class TweetImporter(object):
 
     def _read_parquet_file(self, i, filename, target_path, file_prefix=None):
         df = self.read_tweet_dataframe(filename)
-
+        print('reading', filename)
         if file_prefix is not None:
             target_file = target_path / f"{file_prefix}.{i}.parquet"
         else:
@@ -365,4 +368,5 @@ class TweetImporter(object):
             df["user.created_at"], format=twitter_date_format
         )
         write_parquet(df, target_file)
+        print(i, 'done', filename, len(df))
         return len(df)

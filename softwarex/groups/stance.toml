@@ -1,0 +1,9 @@
+[apruebo]
+username_tokens = ['#apruebo', '#yoapruebo']
+description_tokens = ['#apruebo', '#yoapruebo']
+tweet_tokens = ['#apruebounchilemejor', '#apruebazo']
+
+[rechazo]
+username_tokens = ['#rechazo', '#yorechazo']
+description_tokens = ['#rechazo', '#yorechazo']
+tweet_tokens = ['#rechazoporchile', 'rechazoxamorachile']

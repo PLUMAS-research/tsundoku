@@ -1,0 +1,31 @@
+[experiments]
+
+[experiments.workers_day]
+key = 'workers_day'
+folder_start = '2022-05-01'
+folder_end = '2022-05-01'
+discussion_only = 1
+discussion_directed = 0
+
+[thresholds]
+name_tokens = 50
+description_tokens = 50
+tweet_tokens = 500
+tweet_domains = 25
+profile_domains = 10
+profile_tlds = 10
+edge_weight = 1
+total_degree = 1
+
+[relevance]
+order = ['relevant', 'undisclosed', 'noise']
+
+[relevance.xgb]
+n_estimators = 200
+
+[stance]
+order = ['apruebo', 'undisclosed', 'rechazo']
+colors = ["#7851A9", '#666666', "#FBCEB1"]
+
+[stance.xgb]
+n_estimators = 200

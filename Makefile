@@ -63,7 +63,7 @@ clean:
 conda-create-env:
 ifeq (True,$(HAS_CONDA))
 	@printf ">>> Creating '$(ENV_NAME)' conda environment. This could take a few minutes ...\n\n"
-	@$(CONDA) env create --name $(ENV_NAME) --file environment.yml
+	@PIP_NO_DEPS=1 $(CONDA) env create --name $(ENV_NAME) --file environment.yml
 	@printf ">>> Adding the project to the environment...\n\n"
 else
 	@printf ">>> conda command not found. Check out that conda has been installed properly."
@@ -91,7 +91,7 @@ uninstall-pre-commit:
 
 ## install package in editable mode
 install-package:
-	conda run --name '$(ENV_NAME)' python -m pip install --editable .
+	conda run --name '$(ENV_NAME)' python -m pip install -e .
 
 ## uninstall package
 uninstall-package:

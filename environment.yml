@@ -7,7 +7,7 @@ dependencies:
   - pip
   - pandas
   - numpy
-  - scipy
+  - scipy<1.13
   - dask
   - cytoolz
   - python-rapidjson
@@ -23,25 +23,21 @@ dependencies:
   - graph-tool
   - jupyter
   - networkx
-  - spectra
-  - descartes
   - scikit-learn
   - nltk
   - KDEpy
   - xlrd
+  - plotly
+  - pytz
   - pip:
-    - pytz
     - ftfy
     - emoji
     - adjustText
     - toml
-    - scattertext
     - powerlaw
-    - shifterator
     - pymunk
     - emoji
     - bezier
-    - matplotlib-scalebar
     - python-dotenv
     - tweepy
     - requests

@@ -1,0 +1,15 @@
+[project]
+name = "Demo Project for SoftwareX"
+
+[project.content]
+term_files = ["keywords.txt"]
+accepted_lang = ["es"]
+timezone = "America/Santiago"
+
+[project.content.user_matrix]
+stopwords_file = "stopwords.txt"
+
+[project.settings]
+io_n_jobs = 2
+n_jobs = 6
+data_path = "./softwarex/data"

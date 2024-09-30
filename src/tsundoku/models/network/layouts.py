@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 
-import graph_tool
 import graph_tool.draw
 import graph_tool.topology
+import graph_tool
 import numpy as np
 
-from .base import Network
+from . import Network
 
 
 class LayoutStrategy(ABC):

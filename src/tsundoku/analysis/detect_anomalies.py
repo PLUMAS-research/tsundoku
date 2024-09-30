@@ -1,62 +1,32 @@
 import datetime
-import logging
-import os
+
 import click
-import dask
 import dask.dataframe as dd
 import joblib
 import numpy as np
 import pandas as pd
-import toml
-
-from multiprocessing.pool import ThreadPool
-from pathlib import Path
-from dotenv import find_dotenv, load_dotenv
 from sklearn.ensemble import IsolationForest
 
-from tsundoku.utils.files import read_toml
+from tsundoku.utils.config import TsundokuApp
 
 
 @click.command()
-@click.option("--experiment", type=str, default="full")
-@click.option("--group", type=str, default="stance")
+@click.argument("experiment", type=str)
+@click.argument("group", type=str)
 def main(experiment, group):
-    """Runs data processing scripts to turn raw data from (../raw) into
-    cleaned data ready to be analyzed (saved in ../processed).
-    """
+    app = TsundokuApp("Anomaly Detection")
 
-    experiment_name = experiment
-
-    logger = logging.getLogger(__name__)
-    logger.info("making final data set from raw data")
-
-    config = read_toml(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")[
-        "project"
-    ]
-    logger.info(str(config))
-    dask.config.set(pool=ThreadPool(int(config.get("n_jobs", 2))))
-
-    source_path = Path(config["path"]["data"]) / "raw"
-    experiment_file = Path(config["path"]["config"]) / "experiments.toml"
+    source_path = app.data_path / "raw"
 
     if not source_path.exists():
         raise FileNotFoundError(source_path)
 
-    if not experiment_file.exists():
-        raise FileNotFoundError(experiment_file)
+    experimental_settings = app.experiment_config["experiments"][experiment]
+    app.logger.info(f"Experimental settings: {experimental_settings}")
 
-    with open(experiment_file) as f:
-        experiment_config = toml.load(f)
-        logging.info(f"{experiment_config}")
+    anomaly_settings = experimental_settings.get("anomalies", {})
 
-    experimental_settings = experiment_config["experiments"][experiment_name]
-    logging.info(f"Experimental settings: {experimental_settings}")
-
-    anomaly_settings = experimental_settings.get('anomalies', {})
-
-    processed_path = (
-        Path(config["path"]["data"]) / "processed" / experimental_settings.get("key")
-    )
+    processed_path = app.data_path / "processed" / experimental_settings.get("key")
 
     user_data = dd.read_parquet(
         processed_path / "consolidated/user.consolidated_groups.parquet",
@@ -73,7 +43,7 @@ def main(experiment, group):
             "data.statuses_count",
             "data.rts_count",
             "data.quotes_count",
-            "data.replies_count"
+            "data.replies_count",
             # "data.rts_received",
             # "data.quotes_received",
             # "data.replies_received",
@@ -84,12 +54,11 @@ def main(experiment, group):
         "feature.transformed_"
     )
 
-    #print(user_data.columns)
+    # print(user_data.columns)
 
     user_data["feature.ratio_friends_over_followers"] = np.log(
         user_data["user.friends_count"] + 1
     ) / np.log(user_data["user.followers_count"] + 1)
-
 
     user_data["feature.n_digits_username"] = (
         user_data["user.screen_name"]
@@ -98,18 +67,15 @@ def main(experiment, group):
         .apply(lambda x: sum(c.isdigit() for c in x))
     )
 
-
     # user_data["feature.default_profile_image"] = (
     #     user_data["user.default_profile_image"].astype(int).fillna(0)
     # )
-
-    
 
     # TO DO - ERROR:
     # raise TypeError(f"Invalid value '{str(value)}' for dtype {self.dtype}")
     # TypeError: Invalid value '' for dtype Float64
     for col in user_data.columns:
-        print(col, user_data[col].dtype, user_data[col].dtype == "float64")
+        #app.logger.info(col, user_data[col].dtype, user_data[col].dtype == "float64")
         if user_data[col].dtype == "float64":
             user_data[col] = user_data[col].fillna(0.0)
         elif user_data[col].dtype == object:
@@ -118,15 +84,19 @@ def main(experiment, group):
     user_features = user_data.join(user_transformed_volume, on="user.id")
 
     for network in ["retweet", "quote", "reply"]:
-        network_components = dd.read_parquet(
-            processed_path
-            / f"consolidated/network.{network}_filtered_node_components.parquet"
-        ).set_index("index").compute()
+        network_components = (
+            dd.read_parquet(
+                processed_path
+                / f"consolidated/network.{network}_filtered_node_components.parquet"
+            )
+            .set_index("index")
+            .compute()
+        )
 
         component_count = network_components["network_component"].value_counts()
         component_count = component_count[component_count >= 10]
 
-        print(component_count)
+        app.logger.info(f"Components: {component_count}")
 
         network_components = (
             network_components[
@@ -141,7 +111,7 @@ def main(experiment, group):
             )
         )
 
-        print(network_components.head())
+        app.logger.info(network_components.head())
 
         user_features = user_features.join(
             network_components,
@@ -192,7 +162,7 @@ def main(experiment, group):
                 user_features["feature.active_days"]
             )
 
-    user_daily_stats['datetime'] = pd.to_datetime(user_daily_stats['date'])
+    user_daily_stats["datetime"] = pd.to_datetime(user_daily_stats["date"])
 
     idx_min = user_daily_stats.reset_index().groupby(["user.id"])["datetime"].idxmax()
     idx_max = user_daily_stats.reset_index().groupby(["user.id"])["datetime"].idxmax()
@@ -296,7 +266,7 @@ def main(experiment, group):
     results_matrix["anomaly.label"] = results_matrix["anomaly.score"].apply(
         lambda x: "anomalous" if x < 0 else "normal"
     )
-    print(results_matrix["anomaly.label"].value_counts(normalize=True))
+    app.logger.info(results_matrix["anomaly.label"].value_counts(normalize=True))
 
     results_matrix.to_csv(
         processed_path / "consolidated" / "user.anomaly_features.csv.gz",
@@ -304,18 +274,10 @@ def main(experiment, group):
     )
 
     joblib.dump(model, processed_path / "consolidated" / "user.anomaly_model.joblib.gz")
-    print("model saved")
+    app.logger.info(
+        f'model saved: {processed_path / "consolidated" / "user.anomaly_model.joblib.gz"}'
+    )
 
 
 if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
     main()

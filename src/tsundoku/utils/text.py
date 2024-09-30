@@ -1,19 +1,18 @@
 import pandas as pd
-import scattertext
+#import scattertext
 from cytoolz import sliding_window
 from emoji.unicode_codes import EMOJI_DATA
 from gensim.utils import deaccent as gensim_deaccent
 from nltk.tokenize.casual import casual_tokenize
 from tsundoku.features.twokenize import tokenize as ark_twokenize
-
+from tsundoku.features.term_scoring import LogOddsRatioUninformativeDirichletPrior
 from tsundoku.utils.re import PUNCTUATION_RE, URL_RE
-
 
 def score_frequency_table(gg_df, alpha_w=0.001, top_k=15):
     """
     param @gg_df: DataFrame with documents as rows and terms as columns.
     """
-    scorer = scattertext.LogOddsRatioUninformativeDirichletPrior(alpha_w=alpha_w)
+    scorer = LogOddsRatioUninformativeDirichletPrior(alpha_w=alpha_w)
 
     top_words = {}
 

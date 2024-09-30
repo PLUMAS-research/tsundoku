@@ -1,4 +1,0 @@
-[submodule "twemoji"]
-	path = twemoji
-	url = https://github.com/twitter/twemoji/
-	branch = master

@@ -1,48 +1,32 @@
-import logging
 import os
 import click
-import dask
 import dask.dataframe as dd
-import pyarrow as pa
 import pandas as pd
-import pyarrow.parquet as pq
+
 
 from glob import glob
-from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from dotenv import find_dotenv, load_dotenv
 
 from tsundoku.utils.tweets import TWEET_DTYPES
 from tsundoku.utils.urls import DISCARD_URLS, get_domain
-from tsundoku.utils.files import read_toml, write_parquet
+from tsundoku.utils.files import write_parquet
 from tsundoku.utils.timer import Timer
-
+from tsundoku.utils.config import TsundokuApp
 
 @click.command()
 @click.argument("date", type=str)  # format: YYYYMMDD
 @click.option("--days", default=1, type=int)
-@click.option("--overwrite", type=bool, default=False)
+@click.option("--overwrite", is_flag=True)
 def main(date, days, overwrite):
-    """Runs data processing scripts to turn raw data from (../raw) into
-    cleaned data ready to be analyzed (saved in ../interim).
-    """
-    logger = logging.getLogger(__name__)
-    logger.info("making final data set from raw data")
+    app = TsundokuApp('Feature Creation')
 
-    config = read_toml(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")[
-        "project"
-    ]
-    logger.info(str(config))
-    dask.config.set(pool=ThreadPool(int(config["environment"].get("n_jobs", 2))))
-    dask.config.set({"dataframe.convert-string": False})
-
-    source_path = Path(config["path"]["data"]) / "raw"
+    source_path = app.data_path / "raw"
 
     if not source_path.exists():
         raise FileNotFoundError(source_path)
 
     source_folders = sorted(glob(str(source_path / "*")))
-    logging.info(
+    app.logger.info(
         f"{len(source_folders)} folders with data. {source_folders[0]} up to {source_folders[-1]}"
     )
 
@@ -53,16 +37,16 @@ def main(date, days, overwrite):
     dates = []
     for i, current_date in enumerate(pd.date_range(date, freq="1D", periods=days)):
         current_date = str(current_date.date())
-        tweet_path = Path(config["path"]["data"]) / "raw" / f"{current_date}"
-        target = Path(config["path"]["data"]) / "interim" / f"{current_date}"
+        tweet_path = app.data_path / "raw" / f"{current_date}"
+        target = app.data_path / "interim" / f"{current_date}"
 
         if not target.exists():
             target.mkdir(parents=True)
-            logging.info(f"created: {tweet_path} -> {target}")
+            app.logger.info(f"created: {tweet_path} -> {target}")
         else:
-            logging.info(f"{target} already exists.")
+            app.logger.info(f"{target} already exists.")
             if not overwrite:
-                logging.info(f"skipping.")
+                app.logger.info(f"skipping.")
                 continue
 
         target_files = glob(str(Path(tweet_path) / "*.parquet"))
@@ -70,17 +54,17 @@ def main(date, days, overwrite):
         non_empty_files = list(filter(lambda x: os.stat(x).st_size > 0, target_files))
 
         if not non_empty_files:
-            logger.warning(f"{date} has no validfiles.")
+            app.logger.warning(f"{date} has no validfiles.")
             continue
 
         tweets = dd.read_parquet(non_empty_files, schema=TWEET_DTYPES)
 
         if tweets.npartitions <= 0:
-            logger.warning(f"{date} has no files")
+            app.logger.warning(f"{date} has no files")
             continue
 
         t.start()
-        logging.info(
+        app.logger.info(
             f"{current_date} ({tweets.npartitions} partitions) -> computing user metrics"
         )
         compute_user_metrics(tweets, target, overwrite)
@@ -88,36 +72,36 @@ def main(date, days, overwrite):
         chronometer_compute_user_metrics.append(compute_user_metrics_time)
 
         t.start()
-        logging.info(
+        app.logger.info(
             f"{current_date} ({tweets.npartitions} partitions) -> computing tweet metrics"
         )
         compute_tweet_metrics(tweets, target, overwrite)
         compute_tweet_metrics_time = t.stop()
         chronometer_compute_tweet_metrics.append(compute_tweet_metrics_time)
 
-        logging.info(f"{current_date} -> done! :D")
+        app.logger.info(f"{current_date} -> done! :D")
         dates.append(current_date)
         total_time = compute_user_metrics_time + compute_tweet_metrics_time
         chronometer_total.append(total_time)
-        logging.info(f"{current_date} -> total time: {total_time}")
+        app.logger.info(f"{current_date} -> total time: {total_time}")
 
-    logging.info(f"total time: {sum(chronometer_total)}")
-    logging.info(
+    app.logger.info(f"total time: {sum(chronometer_total)}")
+    app.logger.info(
         f"total time (compute_user_metrics): {sum(chronometer_compute_user_metrics)}"
     )
-    logging.info(
+    app.logger.info(
         f"total time (compute_tweet_metrics): {sum(chronometer_compute_tweet_metrics)}"
     )
-    logging.info(f"total time: {sum(chronometer_total)}")
+    app.logger.info(f"total time: {sum(chronometer_total)}")
 
-    logging.info("Chronometer: " + str(chronometer_total))
-    logging.info(
+    app.logger.info("Chronometer: " + str(chronometer_total))
+    app.logger.info(
         "Chronometer (compute_user_metrics): " + str(chronometer_compute_user_metrics)
     )
-    logging.info(
+    app.logger.info(
         "Chronometer (compute_tweet_metrics): " + str(chronometer_compute_tweet_metrics)
     )
-    logging.info("Dates: " + str(dates))
+    app.logger.info("Dates: " + str(dates))
 
 
 def compute_user_metrics(tweets, target_path, overwrite):
@@ -126,7 +110,7 @@ def compute_user_metrics(tweets, target_path, overwrite):
         users = (
             tweets.drop_duplicates(subset="user.id")
             .compute()
-            .filter(regex="^user\.?.*")
+            .filter(regex=r"^user\.?.*")
         )
 
         write_parquet(users, target_path / "unique_users.parquet")
@@ -418,14 +402,4 @@ def compute_tweet_metrics(tweets, target_path, overwrite):
 
 
 if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
     main()

@@ -63,30 +63,31 @@ alpha = 'asymmetric'
 name_tokens = 250
 description_tokens = 500
 tweet_tokens = 1000
-tweet_domains = 100
+tweet_domains = 250
 profile_domains = 50
 profile_tlds = 50
 edge_weight = 1
-total_degree = 2
+total_degree = 1
 
 [relevance]
 order = ['relevant', 'undisclosed', 'noise']
 
 [relevance.xgb]
 learning_rate = 0.25
-max_depth = 8
-subsample = 0.95
+max_depth = 5
+subsample = 0.75
 n_estimators = 250
 max_delta_step = 1
-n_jobs = 6
+n_jobs = 8
 random_state = 42
 objective = 'binary:logistic'
+tree_method = 'hist'
 
 
 [relevance.pipeline]
 early_stopping_rounds = 10
 eval_fraction = 0.05
-threshold_offset_factor = 0.1
+threshold_offset_factor = 0.15
 
 
 [stance]
@@ -101,6 +102,7 @@ max_delta_step = 1
 n_jobs = 8
 random_state = 42
 objective = 'binary:logistic'
+tree_method = 'hist'
 
 [stance.pipeline]
 early_stopping_rounds = 10
@@ -119,6 +121,7 @@ max_delta_step = 1
 n_jobs = 8
 random_state = 42
 objective = 'binary:logistic'
+tree_method = 'hist'
 
 [plebiscito.pipeline]
 early_stopping_rounds = 10
@@ -131,13 +134,14 @@ order = ['male', 'female', 'institutional', 'undisclosed']
 
 [person.xgb]
 learning_rate = 0.2
-max_depth = 3
-subsample = 0.95
+max_depth = 4
+subsample = 0.9
 n_estimators = 250
 max_delta_step = 1
 n_jobs = 8
 random_state = 42
 objective = 'multi:softmax'
+tree_method = 'hist'
 
 [person.pipeline]
 early_stopping_rounds = 10
@@ -166,13 +170,14 @@ order = [
 
 [location.xgb]
 learning_rate = 0.25
-max_depth = 8
+max_depth = 10
 subsample = 0.95
-n_estimators = 500
+n_estimators = 1000
 max_delta_step = 1
 n_jobs = 4
 random_state = 42
 objective = 'multi:softmax'
+tree_method = 'hist'
 
 [location.pipeline]
 early_stopping_rounds = 10

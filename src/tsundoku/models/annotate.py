@@ -1,19 +1,15 @@
-from tsundoku.utils.files import read_toml
-from pathlib import Path
-import click
-import logging
-from dotenv import find_dotenv, load_dotenv
-import dask
-import dask.dataframe as dd
-from multiprocessing.pool import ThreadPool
-import os
-import toml
-import pandas as pd
-from tsundoku.models.utils import load_model_features
 import datetime
-from collections import defaultdict
-from itertools import chain
+import os
+from glob import glob
+from pathlib import Path
 
+import click
+import dask.dataframe as dd
+import pandas as pd
+
+from tsundoku.models.utils import load_model_features
+from tsundoku.utils.config import TsundokuApp
+from tsundoku.utils.tweets import TWEET_DTYPES
 
 def peek_potentially_relevant_users(path, users, group="stance"):
     features = load_model_features(path, group, users=users)
@@ -28,21 +24,16 @@ def peek_potentially_relevant_users(path, users, group="stance"):
         if type(token) == int:
             whitelisted_user_ids.append(token)
 
-        candidate_id = row['label'].split(":")[1]
+        candidate_id = row["label"].split(":")[1]
 
         try:
             whitelisted_user_ids.append(int(candidate_id))
         except ValueError as e:
             print(e)
 
-    #print(whitelisted_user_ids)
+    # print(whitelisted_user_ids)
 
     return users[users["user.id"].isin(whitelisted_user_ids)]
-
-
-import os
-from tsundoku.utils.tweets import TWEET_DTYPES
-from glob import glob
 
 
 def tweet_dataframe(
@@ -138,67 +129,47 @@ def user_label_loop(users, options, user_func=None):
 
 
 @click.command()
-@click.option("--experiment", type=str, default="full")
-@click.option("--group", type=str)
+@click.argument("experiment", type=str)
+@click.argument("group", type=str)
 def main(experiment, group):
     pd.set_option("display.max_colwidth", None)
 
-    logger = logging.getLogger(__name__)
-    logger.info("making final data set from raw data")
+    app = TsundokuApp("Annotation")
+    app.read_group_config(group)
 
-    config = read_toml(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")[
-        "project"
-    ]
-    dask.config.set(pool=ThreadPool(int(config.get("n_jobs", 2))))
-
-    experiment_file = Path(config["path"]["config"]) / "experiments.toml"
-
-    if not experiment_file.exists():
-        raise FileNotFoundError(experiment_file)
-
-    with open(experiment_file) as f:
-        experiment_config = toml.load(f)
-        logging.info(f"{experiment_config}")
-
-    if not group in experiment_config:
-        experiment_config[group] = {}
-
-    with open(Path(config["path"]["config"]) / "groups" / f"{group}.toml") as f:
-        group_config = toml.load(f)
-
-    print(experiment_config[group])
-    group_options = set(experiment_config[group].get("order", group_config.keys()))
-    try:
-        group_options.remove("undisclosed")
-    except KeyError:
-        pass
-
-    base_path = Path(".")
-
-    data_path = base_path / Path(config["path"]["data"])
     processed_path = (
-        data_path / "processed" / experiment_config["experiments"][experiment]["key"]
+        app.data_path
+        / "processed"
+        / app.experiment_config["experiments"][experiment]["key"]
     )
 
-    folder_pattern = config.get("data_folder_pattern", "*")
+    folder_pattern = app.config.get("data_folder_pattern", "*")
 
-    users = pd.read_parquet(
-        data_path / "processed" / experiment / "user.unique.parquet"
-    ).join(
+    users = (
         pd.read_parquet(
-            processed_path / f"{group}.classification.predictions.parquet"
-        ).set_index("user.id"),
-        on="user.id",
-    ).pipe(lambda x: x[pd.isnull(x['reported_label']) & pd.notnull(x['predicted_class'])])
+            app.data_path / "processed" / experiment / "user.unique.parquet"
+        )
+        .join(
+            pd.read_parquet(
+                processed_path / f"{group}.classification.predictions.parquet"
+            ).set_index("user.id"),
+            on="user.id",
+        )
+        .pipe(
+            lambda x: x[
+                pd.isnull(x["reported_label"]) & pd.notnull(x["predicted_class"])
+            ]
+        )
+    )
 
-    annotations_file = Path(config["path"]["config"]) / "groups" / f"{group}.annotations.csv"
+    annotations_file = app.project_path / "groups" / f"{group}.annotations.csv"
 
     if annotations_file.exists():
-        annotated_user_ids = pd.read_csv(annotations_file)['user.id'].unique()
-        print(f'Found {len(annotated_user_ids)} annotated accounts.')
-        users = users[~users['user.id'].isin(annotated_user_ids)]
+        annotated_user_ids = pd.read_csv(annotations_file)["user.id"].unique()
+        print(f"Found {len(annotated_user_ids)} annotated accounts.")
+        users = users[~users["user.id"].isin(annotated_user_ids)]
 
-    print(f'# of users that could be labeled: {len(users)}')
+    print(f"# of users that could be labeled: {len(users)}")
     print(users.head())
 
     labeled = []
@@ -210,17 +181,17 @@ def main(experiment, group):
             f"See if there are potential relevant users in features of {group} classifier\n"
         )
 
-        labeled.extend(user_label_loop(potential_users, group_options))
+        labeled.extend(user_label_loop(potential_users, app.group_options))
     else:
-        print('No users to label according to classifier features.')
+        print("No users to label according to classifier features.")
 
     see_content = input(
         f"See if there are potential relevant users in terms of {group} content? [Y/N]\n>> "
     )
     if see_content.lower() == "y":
-        print(group_options)
+        print(app.group_options)
 
-        for group_id in group_options:
+        for group_id in app.group_options:
             candidate_users = users[users["user.dataset_tweets"] >= 5]
             if candidate_users.empty:
                 continue
@@ -243,8 +214,8 @@ def main(experiment, group):
 
             potential_group_user_tweets = tweet_dataframe(
                 potential_group_users["user.id"].values,
-                data_path,
-                experiment_config["experiments"][experiment],
+                app.data_path,
+                app.experiment_config["experiments"][experiment],
                 max_tweets=500,
             )
 
@@ -258,7 +229,7 @@ def main(experiment, group):
 
             labeled.extend(
                 user_label_loop(
-                    potential_group_users, group_options, user_func=user_func
+                    potential_group_users, app.group_options, user_func=user_func
                 )
             )
 
@@ -298,8 +269,8 @@ def main(experiment, group):
 
         potential_group_user_tweets = tweet_dataframe(
             cross_group.index.values,
-            data_path,
-            experiment_config["experiments"][experiment],
+            app.data_path,
+            app.experiment_config["experiments"][experiment],
             max_tweets=1000,
         )
 
@@ -314,16 +285,16 @@ def main(experiment, group):
         labeled.extend(
             user_label_loop(
                 users[users["user.id"].isin(cross_group.index)],
-                group_options,
+                app.group_options,
                 user_func=user_func,
             )
         )
 
-    print(labeled)
+    #print(labeled)
     labeled_df = pd.DataFrame.from_records(
         labeled, columns=["class", "user.id", "user.screen_name", "datetime"]
     )
-    print(labeled_df)
+    app.logger.info(labeled_df)
 
     if annotations_file.exists():
         labeled_df = pd.concat([pd.read_csv(annotations_file), labeled_df])
@@ -332,14 +303,4 @@ def main(experiment, group):
 
 
 if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
     main()

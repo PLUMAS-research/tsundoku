@@ -19,7 +19,7 @@ from tsundoku.utils.timer import Timer
 def main(date, days, pattern, source_path, target_path):
     logger = logging.getLogger(__name__)
     logger.info("Transforming from .json to .parquet for arrow library usage")
-
+    print(os.environ)
     project = TweetImporter(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")
     logger.info(str(project.config))
 
@@ -63,5 +63,5 @@ if __name__ == "__main__":
     log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_fmt)
 
-    load_dotenv(find_dotenv())
+    load_dotenv(find_dotenv(usecwd=True), override=True)
     main()

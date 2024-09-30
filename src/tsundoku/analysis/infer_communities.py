@@ -1,65 +1,25 @@
-import logging
-import os
 import click
-import dask
-import dask.dataframe as dd
 import pandas as pd
-import toml
 
-from multiprocessing.pool import ThreadPool
-from pathlib import Path
-from dotenv import find_dotenv, load_dotenv
-from sklearn.ensemble import IsolationForest
-
-from tsundoku.utils.files import read_toml
 from tsundoku.models.network import Network
+from tsundoku.utils.config import TsundokuApp
 
 
 @click.command()
-@click.option("--experiment", type=str, default="full")
+@click.argument("experiment", type=str)
 def main(experiment):
-    """Runs data processing scripts to turn raw data from (../raw) into
-    cleaned data ready to be analyzed (saved in ../processed).
-    """
+    app = TsundokuApp("Community Inference")
 
-    experiment_name = experiment
+    experimental_settings = app.experiment_config["experiments"][experiment]
+    app.logger.info(f"Experimental settings: {experimental_settings}")
 
-    logger = logging.getLogger(__name__)
-    logger.info("making final data set from raw data")
+    processed_path = app.data_path / "processed" / experimental_settings.get("key")
 
-    config = read_toml(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")[
-        "project"
-    ]
-    logger.info(str(config))
-    dask.config.set(pool=ThreadPool(int(config.get("n_jobs", 2))))
-
-    source_path = Path(config["path"]["data"]) / "raw" / "json"
-    experiment_file = Path(config["path"]["config"]) / "experiments.toml"
-
-    if not source_path.exists():
-        raise FileNotFoundError(source_path)
-
-    if not experiment_file.exists():
-        raise FileNotFoundError(experiment_file)
-
-    with open(experiment_file) as f:
-        experiment_config = toml.load(f)
-        logging.info(f"{experiment_config}")
-
-    experimental_settings = experiment_config["experiments"][experiment_name]
-    logging.info(f"Experimental settings: {experimental_settings}")
-
-    processed_path = (
-        Path(config["path"]["data"]) / "processed" / experimental_settings.get("key")
+    users = pd.read_parquet(
+        processed_path / "consolidated" / "user.consolidated_groups.parquet"
     )
 
-    users = pd.read_json(
-        processed_path / "consolidated" / "user.consolidated_groups.parquet", lines=True
-    )
-
-    rts = pd.read_json(
-        processed_path / "user.retweet_edges.all.parquet", lines=True
-    ).pipe(
+    rts = pd.read_parquet(processed_path / "user.retweet_edges.all.parquet").pipe(
         lambda x: x[
             x["user.id"].isin(users["user.id"]) & x["rt.user.id"].isin(users["user.id"])
         ]
@@ -82,13 +42,15 @@ def main(experiment):
 
     connected_rt_network = rt_network.largest_connected_component(directed=True)
 
-    print(connected_rt_network.num_vertices, connected_rt_network.num_edges)
+    app.logger.info(
+        f"{connected_rt_network.num_vertices}, {connected_rt_network.num_edges}"
+    )
 
     connected_rt_network.save(
         processed_path / "consolidated" / "rt_connected.network.gt"
     )
 
-    print("saved")
+    app.logger.info("saved")
 
     connected_rt_network.detect_communities(
         method="hierarchical", hierarchical_covariate_type="discrete-poisson"
@@ -100,14 +62,4 @@ def main(experiment):
 
 
 if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
     main()

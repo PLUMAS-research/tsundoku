@@ -1,70 +1,39 @@
-import toml
-import pandas as pd
-import numpy as np
-
-import dask.dataframe as dd
-import dask
-import click
 import copy
-import logging
 import os
-import matplotlib
-
 from glob import glob
-from multiprocessing.pool import ThreadPool
-from pathlib import Path
-from scipy.sparse import dok_matrix, save_npz, csr_matrix
-from dotenv import find_dotenv, load_dotenv
+
+import click
+import dask.dataframe as dd
+import numpy as np
+import pandas as pd
+from scipy.sparse import dok_matrix, save_npz
+
 from tsundoku.models.network import Network
-
-from tsundoku.utils.files import read_toml, write_parquet
-from tsundoku.utils.urls import get_domain
+from tsundoku.utils.config import TsundokuApp
 from tsundoku.utils.dtm import build_vocabulary, tokens_to_document_term_matrix
-from tsundoku.utils.vocabulary import filter_vocabulary
+from tsundoku.utils.files import write_parquet
 from tsundoku.utils.timer import Timer
-
-matplotlib.use("agg")
+from tsundoku.utils.urls import get_domain
+from tsundoku.utils.vocabulary import filter_vocabulary
 
 
 @click.command()
-@click.option("--experiment", type=str, default="full")
-@click.option("--overwrite", type=bool, default=False)
+@click.argument("experiment", type=str)
+@click.option("--overwrite", is_flag=True)
 def main(experiment, overwrite):
-    """Runs data processing scripts to turn raw data from (../raw) into
-    cleaned data ready to be analyzed (saved in ../processed).
-    """
+    app = TsundokuApp("Experimental Setup")
 
-    experiment_name = experiment
-    logger = logging.getLogger(__name__)
-    logger.info("making final data set from raw data")
-
-    config = read_toml(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")[
-        "project"
-    ]
-    logger.info(str(config))
-    dask.config.set(pool=ThreadPool(int(config.get("n_jobs", 2))))
-    dask.config.set({"dataframe.convert-string": False})
-
-    source_path = Path(config["path"]["data"]) / "raw"
-    experiment_file = Path(config["path"]["config"]) / "experiments.toml"
+    source_path = app.data_path / "raw"
 
     if not source_path.exists():
         raise FileNotFoundError(source_path)
 
-    if not experiment_file.exists():
-        raise FileNotFoundError(experiment_file)
-
-    with open(experiment_file) as f:
-        experiment_config = toml.load(f)
-        logging.info(f"{experiment_config}")
-
-    experimental_settings = experiment_config["experiments"][experiment_name]
-    logging.info(f"Experimental settings: {experimental_settings}")
+    experimental_settings = app.experiment_config["experiments"][experiment]
 
     source_folders = sorted(
         glob(str(source_path / experimental_settings.get("folder_pattern", "*")))
     )
-    logging.info(
+    app.logger.info(
         f"{len(source_folders)} folders with data. {source_folders[0]} up to {source_folders[-1]}"
     )
 
@@ -83,25 +52,23 @@ def main(experiment, overwrite):
     key_folders = list(key_folders)
 
     if not key_folders:
-        logging.info(
+        app.logger.info(
             "There are no folders with experiment data. Check folder_start and folder_end settings."
         )
         return -1
 
-    logging.info(f"Key Folders: {key_folders}")
+    app.logger.info(f"Key Folders: {key_folders}")
 
     # let's go
 
-    data_base = Path(config["path"]["data"]) / "interim"
-    processed_path = (
-        Path(config["path"]["data"]) / "processed" / experimental_settings.get("key")
-    )
+    data_base = app.data_path / "interim"
+    processed_path = app.data_path / "processed" / experimental_settings.get("key")
 
     if not processed_path.exists():
         processed_path.mkdir(parents=True)
-        logging.info(f"{processed_path} created")
+        app.logger.info(f"{processed_path} created")
     else:
-        logging.info(f"{processed_path} exists")
+        app.logger.info(f"{processed_path} exists")
 
     data_paths = [data_base / key for key in key_folders]
 
@@ -128,6 +95,7 @@ def main(experiment, overwrite):
             interaction_dd = dd.from_pandas(df, npartitions=0)
 
         group_user_interactions(
+            app,
             interaction_dd,
             key_column,
             int_column,
@@ -142,14 +110,17 @@ def main(experiment, overwrite):
 
     # users
     t.start()
-    count_user_tweets(data_paths, processed_path, overwrite=overwrite)
+    count_user_tweets(app, data_paths, processed_path, overwrite=overwrite)
     group_users(
+        app,
         data_paths,
         processed_path,
         discussion_only=bool(experimental_settings.get("discussion_only", False)),
         directed=bool(experimental_settings.get("discussion_directed", False)),
-        min_edge_weight=int(experiment_config["thresholds"].get("edge_weight", 1)),
-        min_total_degree=int(experiment_config["thresholds"].get("total_degree", 1)),
+        min_edge_weight=int(app.experiment_config["thresholds"].get("edge_weight", 1)),
+        min_total_degree=int(
+            app.experiment_config["thresholds"].get("total_degree", 1)
+        ),
         overwrite=overwrite,
     )
     current_timer = t.stop()
@@ -157,12 +128,14 @@ def main(experiment, overwrite):
     process_names.append(f"users_group")
 
     # matrices
-    stopwords_file = Path(config["path"]["config"]) / "stopwords.txt"
+    stopwords_file = app.project_path / app.config["content"]["user_matrix"].get(
+        "stopwords_file", "stopwords.txt"
+    )
 
     if not stopwords_file.exists():
         stopwords_file = None
 
-    min_freq = experiment_config["thresholds"].get("name_tokens", 50)
+    min_freq = app.experiment_config["thresholds"].get("name_tokens", 50)
     # we read this again to catch changes in biographies and so on
     users_dd = dd_from_parquet_paths([d / "unique_users.parquet" for d in data_paths])
     # this file exists from group_users
@@ -175,6 +148,7 @@ def main(experiment, overwrite):
 
     t.start()
     build_vocabulary_and_matrix(
+        app,
         users_dd,
         processed_path,
         elem_type,
@@ -190,8 +164,9 @@ def main(experiment, overwrite):
     process_names.append(f"user_name_vocabulary_matrix")
 
     t.start()
-    min_freq = experiment_config["thresholds"].get("description_tokens", 50)
+    min_freq = app.experiment_config["thresholds"].get("description_tokens", 50)
     build_vocabulary_and_matrix(
+        app,
         users_dd,
         processed_path,
         elem_type,
@@ -212,8 +187,9 @@ def main(experiment, overwrite):
     terms_dd = dd_from_parquet_paths(
         [d / "tweet_vocabulary.parquet" for d in data_paths]
     )
-    min_freq = experiment_config["thresholds"].get("tweet_tokens", 50)
+    min_freq = app.experiment_config["thresholds"].get("tweet_tokens", 50)
     build_user_tweets_term_matrix(
+        app,
         terms_dd,
         processed_path,
         elem_to_id,
@@ -233,7 +209,7 @@ def main(experiment, overwrite):
     ):
         t.start()
         build_network(
-            int_name, int_column, elem_to_id, processed_path, overwrite=overwrite
+            app, int_name, int_column, elem_to_id, processed_path, overwrite=overwrite
         )
         current_timer = t.stop()
         chronometer.append(current_timer)
@@ -242,9 +218,9 @@ def main(experiment, overwrite):
     # user tweet urls
     t.start()
     urls_dd = dd_from_parquet_paths([d / "user_urls.parquet" for d in data_paths])
-    min_freq = experiment_config["thresholds"].get("tweet_domains", 50)
+    min_freq = app.experiment_config["thresholds"].get("tweet_domains", 50)
     group_user_urls(
-        urls_dd, elem_to_id, processed_path, min_freq=min_freq, overwrite=overwrite
+        app, urls_dd, elem_to_id, processed_path, min_freq=min_freq, overwrite=overwrite
     )
     current_timer = t.stop()
     chronometer.append(current_timer)
@@ -252,9 +228,10 @@ def main(experiment, overwrite):
 
     # user profile domains
     t.start()
-    min_freq = experiment_config["thresholds"].get("profile_domains", 10)
-    min_freq_tld = experiment_config["thresholds"].get("profile_tlds", 50)
+    min_freq = app.experiment_config["thresholds"].get("profile_domains", 10)
+    min_freq_tld = app.experiment_config["thresholds"].get("profile_tlds", 50)
     group_profile_domains(
+        app,
         users_dd,
         elem_to_id,
         processed_path,
@@ -266,8 +243,8 @@ def main(experiment, overwrite):
     chronometer.append(current_timer)
     process_names.append(f"user_profile_domains_group")
 
-    logger.info("Chronometer: " + str(chronometer))
-    logger.info("Chronometer process names: " + str(process_names))
+    app.logger.info("Chronometer: " + str(chronometer))
+    app.logger.info("Chronometer process names: " + str(process_names))
 
 
 def dd_from_parquet_paths(paths, min_size=100):
@@ -277,11 +254,11 @@ def dd_from_parquet_paths(paths, min_size=100):
     return dd.read_parquet(valid_paths)
 
 
-def count_user_tweets(data_paths, destination_path, overwrite=False):
+def count_user_tweets(app, data_paths, destination_path, overwrite=False):
     count_target = destination_path / "user.total_tweets.parquet"
 
     if not overwrite and count_target.exists():
-        logging.info("total tweet counts were computed! skipping.")
+        app.logger.info("total tweet counts were computed! skipping.")
         return
 
     tweet_dd = (
@@ -295,10 +272,11 @@ def count_user_tweets(data_paths, destination_path, overwrite=False):
     )
 
     write_parquet(tweet_dd, count_target)
-    logging.info(f"user tweet counts -> {count_target}")
+    app.logger.info(f"user tweet counts -> {count_target}")
 
 
 def group_users(
+    app,
     data_paths,
     processed_path,
     discussion_only=True,
@@ -311,7 +289,7 @@ def group_users(
     elem_ids_target = processed_path / "user.elem_ids.parquet"
 
     if not overwrite and (target_file.exists() and elem_ids_target.exists()):
-        logging.info("users were already grouped! skipping.")
+        app.logger.info("users were already grouped! skipping.")
         return
 
     users = (
@@ -321,8 +299,9 @@ def group_users(
     )
 
     if discussion_only:
-        logging.info(f"total #users before filtering by discussion: {len(users)}")
+        app.logger.info(f"total #users before filtering by discussion: {len(users)}")
         nodes_in_largest = find_nodes_in_discussion(
+            app,
             processed_path,
             directed=directed,
             min_edge_weight=min_edge_weight,
@@ -330,7 +309,7 @@ def group_users(
         )
         users = users[users["user.id"].isin(nodes_in_largest)]
 
-    logging.info(f"total #users: {len(users)}")
+    app.logger.info(f"total #users: {len(users)}")
 
     tweet_count = (
         dd.read_parquet(processed_path / "user.total_tweets.parquet")
@@ -341,19 +320,20 @@ def group_users(
     users = users.join(tweet_count, on="user.id", how="inner").sort_values(
         "user.dataset_tweets", ascending=False
     )
-    logging.info(f"total #users after joining with tweet count: {len(users)}")
+    app.logger.info(f"total #users after joining with tweet count: {len(users)}")
 
     write_parquet(users, target_file)
-    logging.info(f"#{len(users)} users -> {target_file}")
+    app.logger.info(f"#{len(users)} users -> {target_file}")
 
     users = users[["user.id"]].assign(row_id=lambda x: range(len(x)))
 
     write_parquet(users, elem_ids_target)
 
-    logging.info(f"user row ids -> {elem_ids_target}")
+    app.logger.info(f"user row ids -> {elem_ids_target}")
 
 
 def build_vocabulary_and_matrix(
+    app,
     dask_df,
     destination_path,
     elem_type,
@@ -380,11 +360,11 @@ def build_vocabulary_and_matrix(
     if not overwrite and (
         vocabulary_target.exists() and relevant_vocabulary_target.exists()
     ):
-        logging.info("vocabulary was computed! skipping.")
+        app.logger.info("vocabulary was computed! skipping.")
     else:
         vocabulary = build_vocabulary(dask_df, token_column, to_lower=to_lower)
         write_parquet(vocabulary.reset_index(), vocabulary_target)
-        logging.info(f"{elem_type}.{token_column} vocabulary -> {vocabulary_target}")
+        app.logger.info(f"{elem_type}.{token_column} vocabulary -> {vocabulary_target}")
 
         relevant_vocabulary = filter_vocabulary(
             vocabulary,
@@ -393,13 +373,13 @@ def build_vocabulary_and_matrix(
             remove_punctuation=remove_punctuation,
         )
 
-        logging.info(
+        app.logger.info(
             f"{elem_type}.{token_column} relevant vocabulary -> {relevant_vocabulary_target}"
         )
         write_parquet(relevant_vocabulary.reset_index(), relevant_vocabulary_target)
 
     if not overwrite and token_matrix_target.exists():
-        logging.info(f"{elem_type}.{token_column} matrix exists! skipping.")
+        app.logger.info(f"{elem_type}.{token_column} matrix exists! skipping.")
     else:
         if relevant_vocabulary is None:
             relevant_vocabulary = dd.read_parquet(relevant_vocabulary_target).set_index(
@@ -417,10 +397,11 @@ def build_vocabulary_and_matrix(
         )
         token_matrix = token_matrices.compute().sum()
         save_npz(token_matrix_target, token_matrix)
-        logging.info(f"{elem_type}.{token_column} matrix -> {token_matrix_target}")
+        app.logger.info(f"{elem_type}.{token_column} matrix -> {token_matrix_target}")
 
 
 def build_user_tweets_term_matrix(
+    app,
     term_frequencies,
     destination_path,
     elem_to_id,
@@ -439,11 +420,11 @@ def build_user_tweets_term_matrix(
     if not overwrite and (
         full_vocabulary_target.exists() and relevant_full_vocabulary_target.exists()
     ):
-        logging.info("vocabulary was computed! skipping.")
+        app.logger.info("vocabulary was computed! skipping.")
     else:
         full_vocabulary = term_frequencies.groupby("token")["frequency"].sum().compute()
         write_parquet(full_vocabulary.reset_index(), full_vocabulary_target)
-        logging.info(f"user.tweet_tokens vocabulary -> {full_vocabulary_target}")
+        app.logger.info(f"user.tweet_tokens vocabulary -> {full_vocabulary_target}")
 
         relevant_full_vocabulary = filter_vocabulary(
             full_vocabulary.reset_index(),
@@ -455,12 +436,12 @@ def build_user_tweets_term_matrix(
             relevant_full_vocabulary.reset_index(), relevant_full_vocabulary_target
         )
 
-        logging.info(
+        app.logger.info(
             f"user.tweet_tokens relevant vocabulary -> {relevant_full_vocabulary_target}"
         )
 
     if not overwrite and tweet_matrix_target.exists():
-        logging.info(f"user.tweet_tokens matrix exists! skipping.")
+        app.logger.info(f"user.tweet_tokens matrix exists! skipping.")
     else:
         if relevant_full_vocabulary is None:
             relevant_full_vocabulary = dd.read_parquet(
@@ -480,7 +461,7 @@ def build_user_tweets_term_matrix(
             .compute()
         )
 
-        logging.info(f"user_tweet_frequency: {user_tweet_frequency.shape}")
+        app.logger.info(f"user_tweet_frequency: {user_tweet_frequency.shape}")
 
         tweet_token_to_id = relevant_full_vocabulary["token_id"].to_dict()
         # print(tweet_token_to_id)
@@ -498,13 +479,14 @@ def build_user_tweets_term_matrix(
             dtm[row_id, column_id] = getattr(row, "frequency")
 
         dtm = dtm.tocsr()
-        logging.info(f"user.tweet_tokens matrix: {repr(dtm)}")
+        app.logger.info(f"user.tweet_tokens matrix: {repr(dtm)}")
 
         save_npz(tweet_matrix_target, dtm)
-        logging.info(f"user.tweet_tokens matrix -> {tweet_matrix_target}")
+        app.logger.info(f"user.tweet_tokens matrix -> {tweet_matrix_target}")
 
 
 def find_nodes_in_discussion(
+    app,
     processed_path,
     directed=False,
     min_edge_weight=1,
@@ -524,7 +506,7 @@ def find_nodes_in_discussion(
         layer.columns = ["source.id", "target.id", layer_name]
         layer_pd = layer.compute()
         layers = layers.merge(layer_pd, how="outer").fillna(0)
-        logging.info(f"full network layer {layer_name}: {layers.shape}")
+        app.logger.info(f"full network layer {layer_name}: {layers.shape}")
 
     for layer_name in ["retweet", "reply", "quote"]:
         layers[layer_name] = layers[layer_name].astype(int)
@@ -541,7 +523,7 @@ def find_nodes_in_discussion(
 
     nodes_in_largest = list(network.graph.vertex_properties["elem_id"])
 
-    logging.info(f"total #nodes in largest component: {len(nodes_in_largest)}")
+    app.logger.info(f"total #nodes in largest component: {len(nodes_in_largest)}")
 
     node_degree = network.estimate_node_degree("total")
     filtered_nodes = [
@@ -552,7 +534,7 @@ def find_nodes_in_discussion(
         if degree >= min_total_degree
     ]
 
-    logging.info(
+    app.logger.info(
         f"total #nodes after filtering by total degree (min={min_total_degree}): {len(filtered_nodes)}"
     )
 
@@ -560,6 +542,7 @@ def find_nodes_in_discussion(
 
 
 def build_network(
+    app,
     name,
     target_column,
     elem_to_id,
@@ -572,7 +555,7 @@ def build_network(
     adjacency_matrix_path = destination_path / f"network.{name}.matrix.npz"
 
     if not overwrite and (id_to_node_path.exists() and adjacency_matrix_path.exists()):
-        logging.info(f"{name} adjacency matrix exists! skipping.")
+        app.logger.info(f"{name} adjacency matrix exists! skipping.")
         return
 
     edges = dd.read_parquet(edges_path, lines=True).pipe(
@@ -605,18 +588,19 @@ def build_network(
     sparse_adjacency_matrix = dok_matrix((len(elem_to_id), len(id_to_node)), dtype=int)
 
     for row in edges.itertuples():
-        sparse_adjacency_matrix[
-            getattr(row, "source"), getattr(row, "target")
-        ] = getattr(row, "frequency")
+        sparse_adjacency_matrix[getattr(row, "source"), getattr(row, "target")] = (
+            getattr(row, "frequency")
+        )
 
     sparse_adjacency_matrix = sparse_adjacency_matrix.tocsr()
     save_npz(adjacency_matrix_path, sparse_adjacency_matrix)
-    logging.info(
+    app.logger.info(
         f"{name} adjacency matrix ({repr(sparse_adjacency_matrix)}) -> {adjacency_matrix_path}"
     )
 
 
 def group_user_interactions(
+    app,
     interaction_dd,
     source_column,
     target_column,
@@ -629,19 +613,19 @@ def group_user_interactions(
     )
 
     if not overwrite and interactions_target.exists():
-        logging.info(f"user.{interaction_name} exists! skipping.")
+        app.logger.info(f"user.{interaction_name} exists! skipping.")
     else:
         interactions = (
             interaction_dd.groupby([source_column, target_column]).sum().compute()
         )
         write_parquet(interactions.reset_index(), interactions_target)
-        logging.info(
+        app.logger.info(
             f"user.{interaction_name} (#{len(interactions)}) -> {interactions_target}"
         )
 
 
 def group_user_urls(
-    urls_dd, elem_to_id, destination_path, min_freq=50, overwrite=False
+    app, urls_dd, elem_to_id, destination_path, min_freq=50, overwrite=False
 ):
     url_frequency_target = destination_path / "user.domains.all.parquet"
     url_frequency_relevant_target = destination_path / "user.domains.relevant.parquet"
@@ -650,7 +634,7 @@ def group_user_urls(
     url_matrix_target = destination_path / "user.domains.matrix.npz"
 
     if not overwrite and url_matrix_target.exists():
-        logging.info(f"user.domains matrix exists! skipping.")
+        app.logger.info(f"user.domains matrix exists! skipping.")
         return
 
     urls = urls_dd.groupby(["user.id", "domain"]).sum().compute().reset_index()
@@ -666,7 +650,7 @@ def group_user_urls(
         .assign(token_id=lambda x: range(len(x)))
     )
     write_parquet(url_frequency_relevant.reset_index(), url_frequency_relevant_target)
-    logging.info(
+    app.logger.info(
         f"user.domains relevant vocabulary ({len(url_frequency_relevant)}) -> {url_frequency_relevant_target}"
     )
 
@@ -689,10 +673,11 @@ def group_user_urls(
 
     dtm = dtm.tocsr()
     save_npz(url_matrix_target, dtm)
-    logging.info(f"user.domains matrix ({repr(dtm)}) -> {url_matrix_target}")
+    app.logger.info(f"user.domains matrix ({repr(dtm)}) -> {url_matrix_target}")
 
 
 def group_profile_domains(
+    app,
     users_dd,
     elem_to_id,
     destination_path,
@@ -710,7 +695,7 @@ def group_profile_domains(
     if not overwrite and (
         user_main_domain_matrix_target.exists() and user_tld_matrix_target.exists()
     ):
-        logging.info(f"user.profile_domains exist! skipping.")
+        app.logger.info(f"user.profile_domains exist! skipping.")
         return
 
     profile_urls = (
@@ -744,7 +729,7 @@ def group_profile_domains(
     # logging.info(f"profile_domains 6: {str(profile_domains)}")
 
     write_parquet(profile_domains.reset_index(), profile_domains_target)
-    logging.info(f"user.profile_domains -> {profile_domains_target}")
+    app.logger.info(f"user.profile_domains -> {profile_domains_target}")
 
     domain_to_id = dict(zip(profile_domains.index, range(len(profile_domains))))
 
@@ -766,7 +751,7 @@ def group_profile_domains(
     user_main_domain_matrix = user_main_domain_matrix.tocsr()
 
     save_npz(user_main_domain_matrix_target, user_main_domain_matrix)
-    logging.info(
+    app.logger.info(
         f"user.main_domain matrix ({repr(user_main_domain_matrix)}) -> {user_main_domain_matrix_target}"
     )
 
@@ -779,7 +764,7 @@ def group_profile_domains(
     )
 
     write_parquet(profile_tlds.reset_index(), profile_tlds_target)
-    logging.info(f"user.profile_tlds -> {profile_tlds_target}")
+    app.logger.info(f"user.profile_tlds -> {profile_tlds_target}")
 
     tld_to_id = dict(zip(profile_tlds.index, range(len(profile_tlds))))
 
@@ -798,20 +783,10 @@ def group_profile_domains(
     user_tld_matrix = user_tld_matrix.tocsr()
 
     save_npz(user_tld_matrix_target, user_tld_matrix)
-    logging.info(
+    app.logger.info(
         f"user.tld_domain matrix ({repr(user_tld_matrix)}) -> {user_tld_matrix_target}"
     )
 
 
 if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
     main()
