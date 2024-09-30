@@ -26,10 +26,10 @@ def read(filename):
 # Metadata
 PACKAGENAME = metadata.get("package_name", "tsundoku")
 VERSION = metadata.get("version", "0.1.0")
-URL = metadata.get("url", "https://github.com/zorzalerrante/tsundoku")
+URL = metadata.get("url", "https://github.com/PLUMAS-research/tsundoku")
 LICENSE = metadata.get("license", "MIT")
-AUTHOR = metadata.get("author_name", "Eduardo Graells-Garrido")
-AUTHOR_EMAIL = metadata.get("author_email", "egraells@udd.cl")
+AUTHOR = metadata.get("author_name", "Eduardo Graells-Garrido, Andrés Carvallo, Nicolás García")
+AUTHOR_EMAIL = metadata.get("author_email", "egraells@dcc.uchile.cl")
 DESCRIPTION = metadata.get("description", "Tools to analyze short text stacked in your filesystems.")
 
 
@@ -48,6 +48,6 @@ setup(
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.11",
     ],
 )
