@@ -2,15 +2,17 @@
 
 # Check if the required arguments are provided
 if [ "$#" -lt 3 ]; then
-    echo "Usage: ./tsundoku.sh <command> <date> <experiment>"
+    echo "Usage: ./tsundoku.sh <command> <date> <experiment> [task]"
     echo "Commands: parse_json_to_parquet, import_date, compute_features, prepare_experiment, predict, annotate, consolidate, infer_communities, detect_anomalies, topic_model, generate"
-    echo "Example: ./tsundoku.sh parse_json_to_parquet 20220501 workers_day"
+    echo "Task (required for predict, annotate, consolidate, detect_anomalies): stance or relevance"
+    echo "Example: ./tsundoku.sh predict 20220501 workers_day stance"
     exit 1
 fi
 
 COMMAND=$1
 DATE=$2
 EXPERIMENT=$3
+TASK=$4
 
 case $COMMAND in
     parse_json_to_parquet)
@@ -25,28 +27,25 @@ case $COMMAND in
     prepare_experiment)
         python -m tsundoku.features.prepare_experiment $EXPERIMENT
         ;;
-    predict)
-        python -m tsundoku.models.predict $EXPERIMENT relevance
-        python -m tsundoku.models.predict $EXPERIMENT stance
-        ;;
-    annotate)
-        python -m tsundoku.models.annotate $EXPERIMENT relevance
-        python -m tsundoku.models.annotate $EXPERIMENT stance
-        ;;
-    consolidate)
-        python -m tsundoku.analysis.consolidate $EXPERIMENT stance
+    predict|annotate|consolidate|detect_anomalies)
+        if [ -z "$TASK" ]; then
+            echo "Error: 'task' (stance or relevance) is required for this command."
+            exit 1
+        fi
+        python -m tsundoku.models.$COMMAND $EXPERIMENT $TASK
         ;;
     infer_communities)
         python -m tsundoku.analysis.infer_communities $EXPERIMENT
-        ;;
-    detect_anomalies)
-        python -m tsundoku.analysis.detect_anomalies $EXPERIMENT stance
         ;;
     topic_model)
         python -m tsundoku.analysis.topic_model $EXPERIMENT
         ;;
     generate)
-        python -m tsundoku.report.generate $EXPERIMENT stance
+        if [ -z "$TASK" ]; then
+            echo "Error: 'task' (stance or relevance) is required for this command."
+            exit 1
+        fi
+        python -m tsundoku.report.generate $EXPERIMENT $TASK
         echo "Report generated. Launching local server to view the report..."
         cd reports/$EXPERIMENT
         python -m http.server 8000 &
