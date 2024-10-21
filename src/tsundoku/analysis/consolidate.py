@@ -14,7 +14,7 @@ from .functions import (
 )
 
 
-@click.command()
+@click.command("consolidate_analysis")
 @click.argument("experiment", type=str)
 @click.argument("group", type=str)
 @click.option("--overwrite", is_flag=True)

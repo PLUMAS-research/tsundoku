@@ -10,7 +10,7 @@ from sklearn.ensemble import IsolationForest
 from tsundoku.utils.config import TsundokuApp
 
 
-@click.command()
+@click.command("detect_anomalies")
 @click.argument("experiment", type=str)
 @click.argument("group", type=str)
 def main(experiment, group):

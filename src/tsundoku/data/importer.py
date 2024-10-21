@@ -353,7 +353,7 @@ class TweetImporter(object):
 
     def _read_parquet_file(self, i, filename, target_path, file_prefix=None):
         df = self.read_tweet_dataframe(filename)
-        print('reading', filename)
+        self.logger.info(f'reading {filename}')
         if file_prefix is not None:
             target_file = target_path / f"{file_prefix}.{i}.parquet"
         else:
@@ -368,5 +368,5 @@ class TweetImporter(object):
             df["user.created_at"], format=twitter_date_format
         )
         write_parquet(df, target_file)
-        print(i, 'done', filename, len(df))
+        self.logger.info(f'{filename} done -- {len(df)} tweets')
         return len(df)

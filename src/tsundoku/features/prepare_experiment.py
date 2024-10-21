@@ -17,7 +17,7 @@ from tsundoku.utils.urls import get_domain
 from tsundoku.utils.vocabulary import filter_vocabulary
 
 
-@click.command()
+@click.command("prepare_experiment")
 @click.argument("experiment", type=str)
 @click.option("--overwrite", is_flag=True)
 def main(experiment, overwrite):

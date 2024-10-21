@@ -15,7 +15,7 @@ from matplotlib.colors import rgb2hex
 from tsundoku.utils.config import TsundokuApp
 
 
-@click.command()
+@click.command("generate_report")
 @click.argument("experiment", type=str)
 @click.argument("group", type=str)
 @click.option("--graph_cut", type=int, default=500)

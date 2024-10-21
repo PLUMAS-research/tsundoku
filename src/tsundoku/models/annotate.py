@@ -128,7 +128,7 @@ def user_label_loop(users, options, user_func=None):
     return labeled
 
 
-@click.command()
+@click.command("annotate_users")
 @click.argument("experiment", type=str)
 @click.argument("group", type=str)
 def main(experiment, group):

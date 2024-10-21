@@ -1,9 +1,9 @@
 [apruebo]
-username_tokens = ['#apruebo', '#yoapruebo']
+username_tokens = ['#apruebo', '#yoapruebo', 'apruebo']
 description_tokens = ['#apruebo', '#yoapruebo']
-tweet_tokens = ['#apruebounchilemejor', '#apruebazo']
+tweet_tokens = ['#apruebounchilemejor', '#apruebazo', '#apruebodesalida']
 
 [rechazo]
-username_tokens = ['#rechazo', '#yorechazo']
+username_tokens = ['#rechazo', '#yorechazo', 'rechazo']
 description_tokens = ['#rechazo', '#yorechazo']
-tweet_tokens = ['#rechazoporchile', 'rechazoxamorachile']
+tweet_tokens = ['#rechazoporchile', 'rechazoxamorachile', '#rechazodesalida']

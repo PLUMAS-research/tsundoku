@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+import click
+
+try:
+    from tsundoku.data.convert_json_to_parquet import main as convert_json_to_parquet
+    from tsundoku.data.import_date import main as import_date
+    from tsundoku.data.import_files import main as import_files_into_date
+    from tsundoku.features.compute_features import main as compute_features
+    from tsundoku.features.prepare_experiment import main as prepare_experiment
+    from tsundoku.models.predict import main as classify_users
+    from tsundoku.models.annotate import main as annotate_users
+    from tsundoku.models.evaluate import main as evaluate_classifier
+    from tsundoku.analysis.consolidate import main as consolidate_analysis
+    from tsundoku.analysis.detect_anomalies import main as detect_anomalies
+    from tsundoku.analysis.infer_communities import main as infer_communities
+    from tsundoku.analysis.topic_model import main as topic_model
+    from tsundoku.report.generate import main as generate_report
+    from tsundoku.report.open import main as open_report
+except ImportError:
+    print('tsundoku could not be imported. Have you installed the package or activated the tsundoku environment?')
+    import sys
+    sys.exit(1)
+
+@click.group()
+def tsundoku_cli():
+    pass
+
+tsundoku_cli.add_command(convert_json_to_parquet)
+tsundoku_cli.add_command(import_date)
+tsundoku_cli.add_command(import_files_into_date)
+tsundoku_cli.add_command(compute_features)
+tsundoku_cli.add_command(prepare_experiment)
+tsundoku_cli.add_command(classify_users)
+tsundoku_cli.add_command(annotate_users)
+tsundoku_cli.add_command(evaluate_classifier)
+tsundoku_cli.add_command(consolidate_analysis)
+tsundoku_cli.add_command(detect_anomalies)
+tsundoku_cli.add_command(infer_communities)
+tsundoku_cli.add_command(topic_model)
+tsundoku_cli.add_command(generate_report)
+tsundoku_cli.add_command(open_report)
+
+if __name__ == '__main__':
+    tsundoku_cli()
+

@@ -429,6 +429,7 @@ def train_and_run_classifier(
         eval_fraction=eval_fraction,
     )
 
+    print(eval_fraction)
     classes = clf.classes_
     predictions = pd.DataFrame(clf.predict_proba(X), columns=classes)
     predictions["reported_label"] = single_labels.values

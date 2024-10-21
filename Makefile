@@ -32,33 +32,6 @@ endif
 # COMMANDS                                                                      #
 #################################################################################
 
-# yes/no prompt
-.check_yesno:
-	@echo -n "If you cloned this repo, there is no need to do it. Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
-
-## Init version control. Do it only if you are the project owner
-owner-git: .check_yesno
-	@if [ ! -d ".git" ]; then \
-	git init ; \
-	versioneer install ; \
-	git add . ; \
-	git commit -m "INIT: Initial Commit" ; \
-	fi
-
-## Set github remote and push. Do it only if you are the project owner
-owner-github: .check_yesno
-	@if [ ! -d ".git" ]; then \
-	make owner-git ; \
-	fi
-
-	@read -p "Enter remote repo https: " remote ; \
-	git remote add origin $$remote ; \
-	git push -u origin master ; \
-
-## Delete all compiled Python files
-clean:
-	find . -name "*.pyc" -exec rm {} \;
-
 ## create conda environment
 conda-create-env:
 ifeq (True,$(HAS_CONDA))
@@ -79,45 +52,18 @@ else
 	@printf ">>> conda command not found. Check out that conda has been installed properly."
 endif
 
-## Activate pre-commit
-install-pre-commit:
-	conda run --name '$(ENV_NAME)' pre-commit install
-	conda run --name '$(ENV_NAME)' pre-commit install -t pre-commit
-	conda run --name '$(ENV_NAME)' pre-commit install -t pre-push
-
-## Deactivate pre-commit
-uninstall-pre-commit:
-	conda run --name '$(ENV_NAME)' pre-commit uninstall
-
 ## install package in editable mode
 install-package:
-	conda run --name '$(ENV_NAME)' python -m pip install -e .
+	conda run --name '$(ENV_NAME)' python -m pip install --config-settings editable_mode=compat .
+	chmod +x tsundoku-cli
 
 ## uninstall package
 uninstall-package:
 	conda run --name '$(ENV_NAME)' python -m pip uninstall --yes '$(PACKAGE_NAME)'
 
-## sync data
-sync-data:
-	source .env && rsync --remove-source-files --verbose $$SERVER_USER_NAME:$$SERVER_TWEET_PATH/*.gz $$INCOMING_PATH
-
-## flatten data
-flatten-data:
-	conda run --name '$(ENV_NAME)' python -m tsundoku.data.filter_and_flatten
-
 ## install jupyter notebook kernel
 install-kernel:
 	conda run --name '$(ENV_NAME)' python -m ipykernel install --user --name '$(ENV_NAME)' --display-name "Python ($(ENV_NAME))"
-
-## install pytorch and 🤗 Transformers
-install-torch-gpu:
-	conda run --name '$(ENV_NAME)' pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
-	conda run --name '$(ENV_NAME)' pip install transformers
-
-## install pytorch and 🤗 Transformers
-install-torch-cpu:
-	conda run --name '$(ENV_NAME)' pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
-	conda run --name '$(ENV_NAME)' pip install transformers
 
 ## delete conda environment
 conda-delete-env:

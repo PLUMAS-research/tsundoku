@@ -1,35 +1,35 @@
-import logging
 import os
 import click
 import pandas as pd
 
 from pathlib import Path
-from dotenv import find_dotenv, load_dotenv
 
 from tsundoku.data.importer import TweetImporter
 from tsundoku.utils.timer import Timer
 
+from tsundoku.utils.config import TsundokuApp
 
-@click.command()
+
+@click.command("convert_json_to_parquet")
 @click.argument("date", type=str)  # format: YYYYMMDD
 @click.option("--days", default=1, type=int)
 @click.option("--pattern", default="auroracl_{}.data.gz", type=str)
 @click.option("--source_path", default="", type=str)
 @click.option("--target_path", default="", type=str)
 def main(date, days, pattern, source_path, target_path):
-    logger = logging.getLogger(__name__)
-    logger.info("Transforming from .json to .parquet for arrow library usage")
+    app = TsundokuApp("Convert JSON to Parquet")
+
+    app.logger.info("Transforming from .json to .parquet for arrow library usage")
     print(os.environ)
-    project = TweetImporter(Path(os.environ["TSUNDOKU_PROJECT_PATH"]) / "config.toml")
-    logger.info(str(project.config))
+    project = TweetImporter(app.project_path / "config.toml")
+    app.logger.info(str(project.config))
 
-    source_path = (
-        source_path if (source_path != "") else Path(os.environ["JSON_TWEET_PATH"])
-    )
-    target_path = target_path if (target_path != "") else Path(os.environ["TWEET_PATH"])
+    source_path = source_path if (source_path != "") else app.json_files_path
 
-    logger.info("CURRENT JSON_TWEET_PATH: " + str(source_path))
-    logger.info("TARGET TWEET_PATH: " + str(target_path))
+    target_path = target_path if (target_path != "") else app.tweets_path
+
+    app.logger.info("CURRENT JSON_TWEET_PATH: " + str(source_path))
+    app.logger.info("TARGET TWEET_PATH: " + str(target_path))
 
     t = Timer()
     chronometer = []
@@ -54,14 +54,10 @@ def main(date, days, pattern, source_path, target_path):
             f"Succesfully parsed {current_date} data into parquet files in {current_timer} seconds!"
         )
 
-    logger.info("Chronometer: " + str(chronometer))
-    logger.info("Chronometer dates: " + str(dates))
-    logger.info("Read Tweets: " + str(tweets))
+    app.logger.info("Chronometer: " + str(chronometer))
+    app.logger.info("Chronometer dates: " + str(dates))
+    app.logger.info("Read Tweets: " + str(tweets))
 
 
 if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    load_dotenv(find_dotenv(usecwd=True), override=True)
     main()

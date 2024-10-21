@@ -13,7 +13,7 @@ from tsundoku.utils.files import write_parquet
 from tsundoku.utils.timer import Timer
 from tsundoku.utils.config import TsundokuApp
 
-@click.command()
+@click.command("compute_features")
 @click.argument("date", type=str)  # format: YYYYMMDD
 @click.option("--days", default=1, type=int)
 @click.option("--overwrite", is_flag=True)

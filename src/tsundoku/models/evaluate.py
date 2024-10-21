@@ -11,7 +11,7 @@ from tsundoku.models.pipeline import evaluate, prepare_features
 from tsundoku.utils.config import TsundokuApp
 
 
-@click.command()
+@click.command("evaluate_classifier")
 @click.argument("experiment", type=str)
 @click.argument("group", type=str)
 @click.option("--n_splits", default=5, type=int)

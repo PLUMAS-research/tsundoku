@@ -9,7 +9,7 @@ from tsundoku.utils.timer import Timer
 from tsundoku.utils.config import TsundokuApp
 
 
-@click.command()
+@click.command("import_date")
 @click.argument("date", type=str)  # format: YYYYMMDD
 @click.option("--days", default=1, type=int)
 @click.option("--pattern", default="auroracl_{}.data.parquet", type=str)

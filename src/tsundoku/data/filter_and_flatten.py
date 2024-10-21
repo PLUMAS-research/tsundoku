@@ -17,7 +17,7 @@ dask.config.set(pool=ThreadPool(2))
 from tsundoku.utils.iterator import iterate_tweets
 
 
-@click.command()
+@click.command("flatten_tweet_files")
 def main():
     """Runs data processing scripts to turn raw data from (../raw) into
     cleaned data ready to be analyzed (saved in ../processed).

@@ -13,7 +13,7 @@ from scipy.sparse import load_npz
 from tsundoku.utils.config import TsundokuApp
 
 
-@click.command()
+@click.command("topic_model")
 @click.argument("experiment", type=str)
 @click.option("--n_topics", type=int, default=50)
 def main(experiment, n_topics):

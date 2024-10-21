@@ -8,12 +8,12 @@ discussion_only = 1
 discussion_directed = 0
 
 [thresholds]
-name_tokens = 50
-description_tokens = 50
-tweet_tokens = 500
-tweet_domains = 25
-profile_domains = 10
-profile_tlds = 10
+name_tokens = 5
+description_tokens = 5
+tweet_tokens = 5
+tweet_domains = 5
+profile_domains = 5
+profile_tlds = 5
 edge_weight = 1
 total_degree = 1
 
@@ -23,9 +23,16 @@ order = ['relevant', 'undisclosed', 'noise']
 [relevance.xgb]
 n_estimators = 200
 
+[relevance.pipeline]
+eval_fraction = 0.05
+
 [stance]
 order = ['apruebo', 'undisclosed', 'rechazo']
 colors = ["#7851A9", '#666666', "#FBCEB1"]
 
 [stance.xgb]
 n_estimators = 200
+
+[stance.pipeline]
+early_stopping_rounds = 5
+eval_fraction = 0.01

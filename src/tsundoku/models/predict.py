@@ -12,7 +12,7 @@ from tsundoku.utils.config import TsundokuApp
 from tsundoku.utils.timer import Timer
 
 
-@click.command()
+@click.command("classify_users")
 @click.argument("experiment", type=str)
 @click.argument("group", type=str)
 @click.option("--max_group_labels", type=int, default=-1)

@@ -21,6 +21,8 @@ class TsundokuApp(object):
 
         self.name = name
         self.project_path = Path(os.environ["TSUNDOKU_PROJECT_PATH"])
+        self.json_files_path = Path(os.environ["JSON_TWEET_PATH"])
+        self.tweets_path = Path(os.environ["TWEET_PATH"])
         self.config = read_toml(self.project_path / "config.toml")["project"]
         self.data_path = Path(self.config["settings"]["data_path"])
 

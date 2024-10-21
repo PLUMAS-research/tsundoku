@@ -5,7 +5,7 @@ from tsundoku.models.network import Network
 from tsundoku.utils.config import TsundokuApp
 
 
-@click.command()
+@click.command("infer_communities")
 @click.argument("experiment", type=str)
 def main(experiment):
     app = TsundokuApp("Community Inference")
