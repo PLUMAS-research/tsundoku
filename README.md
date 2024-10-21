@@ -43,9 +43,9 @@ python -m tsundoku.utils.test
 Create an `.env` file in the root of this repository with the following structure:
 
 ```
-TSUNDOKU_PROJECT_PATH=./example_project
-TWEET_PATH=/home/egraells/data/tweets/2021_flattened
-JSON_TWEET_PATH=/mnt/c/Users/nicol/Escritorio/2022_flattened
+TSUNDOKU_PROJECT_PATH=./softwarex
+JSON_TWEET_PATH=./test_data/sample_public
+TWEET_PATH=./test_data/parquet_public
 ```
 
 This is the meaning of each option:
