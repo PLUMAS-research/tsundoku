@@ -53,7 +53,6 @@ This is the meaning of each option:
 * `TSUNDOKU_PROJECT_PATH`: path to your project configuration (this is explained below).
 * `JSON_TWEET_PATH`: directory where you stored the tweets. This code assumes that you crawl tweets using the Streaming API. These tweets are stored in JSON format, one tweet per line, in files compressed using gzip. Particularly, we assume that each file contains **10 minutes of tweets**. The system assumes that those tweets were pre-processed by flattening the structure. These files may be related to any project.
 * `TWEET_PATH`: folder where the system stores tweets in Apache Parquet format.
-```
 
 Files present in `test_data/sample_public` have already been flattened. They are in JSON format, one tweet per line. For analysis, you will need to convert those files to Parquet. You can do so with the following command:
 
