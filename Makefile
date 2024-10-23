@@ -1,4 +1,4 @@
-.PHONY: .check_yesno owner-git owner-github clean conda-create-env conda-update-env install-pre-commit uninstall-pre-commit
+.PHONY: .check_yesno owner-git owner-github clean mamba-create-env mamba-update-env install-pre-commit uninstall-pre-commit
 
 #################################################################################
 # GLOBALS                                                                       #
@@ -11,16 +11,14 @@ PROFILE = default
 PROJECT_NAME = tsundoku
 PACKAGE_NAME = tsundoku
 ENV_NAME = tsundoku
-SRC_CODE_FOLDER = src/tsundoku
 PYTHON_INTERPRETER = python
 CURRENT_ENV := $(CONDA_DEFAULT_ENV)
 
-
 ifeq (,$(shell which mamba))
-HAS_CONDA=False
+HAS_MAMBA=False
 else
-HAS_CONDA=True
-CONDA := $(shell which mamba)
+HAS_MAMBA=True
+MAMBA := $(shell which mamba)
 ifeq ($(CONDA_DEFAULT_ENV),$(ENV_NAME))
 ENV_IS_ACTIVE=True
 else
@@ -32,49 +30,48 @@ endif
 # COMMANDS                                                                      #
 #################################################################################
 
-## create conda environment
-conda-create-env:
-ifeq (True,$(HAS_CONDA))
-	@printf ">>> Creating '$(ENV_NAME)' conda environment. This could take a few minutes ...\n\n"
-	@PIP_NO_DEPS=1 $(CONDA) env create --name $(ENV_NAME) --file environment.yml
+## create mamba environment
+mamba-create-env:
+ifeq (True,$(HAS_MAMBA))
+	@printf ">>> Creating '$(ENV_NAME)' environment using mamba. This could take a few minutes ...\n\n"
+	@PIP_NO_DEPS=1 $(MAMBA) env create --name $(ENV_NAME) --file environment.yml
 	@printf ">>> Adding the project to the environment...\n\n"
 else
-	@printf ">>> conda command not found. Check out that conda has been installed properly."
+	@printf ">>> mamba command not found. Please install mamba first using the instructions in the README."
 endif
 
-## update conda environment
-conda-update-env:
-ifeq (True,$(HAS_CONDA))
-	@printf ">>> Updating '$(ENV_NAME)' conda environment. This could take a few minutes ...\n\n"
-	@$(CONDA) env update --name $(ENV_NAME) --file environment.yml --prune
+## update mamba environment
+mamba-update-env:
+ifeq (True,$(HAS_MAMBA))
+	@printf ">>> Updating '$(ENV_NAME)' environment using mamba. This could take a few minutes ...\n\n"
+	@$(MAMBA) env update --name $(ENV_NAME) --file environment.yml --prune
 	@printf ">>> Updated.\n\n"
 else
-	@printf ">>> conda command not found. Check out that conda has been installed properly."
+	@printf ">>> mamba command not found. Please install mamba first using the instructions in the README."
 endif
 
 ## install package in editable mode
 install-package:
-	conda run --name '$(ENV_NAME)' python -m pip install --config-settings editable_mode=compat .
+	mamba run --name '$(ENV_NAME)' python -m pip install --config-settings editable_mode=compat .
 	chmod +x tsundoku-cli
 
 ## uninstall package
 uninstall-package:
-	conda run --name '$(ENV_NAME)' python -m pip uninstall --yes '$(PACKAGE_NAME)'
+	mamba run --name '$(ENV_NAME)' python -m pip uninstall --yes '$(PACKAGE_NAME)'
 
 ## install jupyter notebook kernel
 install-kernel:
-	conda run --name '$(ENV_NAME)' python -m ipykernel install --user --name '$(ENV_NAME)' --display-name "Python ($(ENV_NAME))"
+	mamba run --name '$(ENV_NAME)' python -m ipykernel install --user --name '$(ENV_NAME)' --display-name "Python ($(ENV_NAME))"
 
-## delete conda environment
-conda-delete-env:
-ifeq (True,$(HAS_CONDA))
-	@printf ">>> Deleting '$(ENV_NAME)' conda environment. This could take a few minutes ...\n\n"
-	@$(CONDA) env remove --name $(ENV_NAME)
+## delete mamba environment
+mamba-delete-env:
+ifeq (True,$(HAS_MAMBA))
+	@printf ">>> Deleting '$(ENV_NAME)' environment using mamba. This could take a few minutes ...\n\n"
+	@$(MAMBA) env remove --name $(ENV_NAME)
 	@printf ">>> Done.\n\n"
 else
-	@printf ">>> conda command not found. Check out that conda has been installed properly."
+	@printf ">>> mamba command not found. Please install mamba first using the instructions in the README."
 endif
-
 
 #################################################################################
 # PROJECT RULES                                                                 #

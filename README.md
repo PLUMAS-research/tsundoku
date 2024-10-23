@@ -6,7 +6,15 @@
 
 ## Development Setup
 
-We use `conda` to install all necessary packages. You will need the `mamba` and `conda` package managers. 
+We use `mamba` to install all necessary packages. First, you'll need to install Mamba:
+
+```bash
+# Install Mamba if you haven't already
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
+bash Mambaforge-$(uname)-$(uname -m).sh
+```
+
+After installing Mamba:
 
 ```bash
 # Clone repository
@@ -15,11 +23,11 @@ git clone http://github.com/PLUMAS-research/tsundoku
 # Move into folder
 cd tsundoku
 
-# Create conda environment, install dependencies on it and activate it
-make conda-create-env
+# Create environment, install dependencies and activate it
+make mamba-create-env
 
 # Activate the environment 
-conda activate tsundoku
+mamba activate tsundoku
 
 # make the tsundoku module available in your environment
 make install-package
