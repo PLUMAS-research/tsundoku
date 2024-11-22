@@ -3,20 +3,20 @@ from pathlib import Path
 
 
 class TestTsundoku(unittest.TestCase):
-    def test_data_conversion(self):
+    def test_00_data_conversion(self):
         self.assertTrue(Path("test_data/sample_public").exists())
         from tsundoku.data.convert_json_to_parquet import main
 
-        main.callback("20220501", 1, "auroracl_", "", "")
+        main.callback("20220501", 1, "auroracl_{}.data.gz", "", "")
         self.assertTrue(Path("test_data/parquet_public").exists())
 
-    def test_data_import(self):
+    def test_01_data_import(self):
         from tsundoku.data.import_date import main
 
         main.callback("20220501", 1, "auroracl_{}.data.parquet", "")
         self.assertTrue(Path("softwarex/data/raw/2022-05-01").exists())
 
-    def test_feature_computation(self):
+    def test_02_feature_computation(self):
         from tsundoku.features.compute_features import main
 
         main.callback("20220501", 1, True)
@@ -25,7 +25,7 @@ class TestTsundoku(unittest.TestCase):
             Path("softwarex/data/interim/2022-05-01/unique_users.parquet").exists()
         )
 
-    def test_experimental_setup(self):
+    def test_03_experimental_setup(self):
         from tsundoku.features.prepare_experiment import main
 
         main.callback("workers_day", True)
@@ -34,7 +34,7 @@ class TestTsundoku(unittest.TestCase):
             Path("softwarex/data/processed/workers_day/user.unique.parquet").exists()
         )
 
-    def test_user_classifier(self):
+    def test_04_user_classifier(self):
         from tsundoku.models.predict import main
 
         main.callback("workers_day", "relevance", -1)
@@ -50,7 +50,7 @@ class TestTsundoku(unittest.TestCase):
             ).exists()
         )
 
-    def test_consolidated_analysis(self):
+    def test_05_consolidated_analysis(self):
         from tsundoku.analysis.consolidate import main
 
         main.callback("workers_day", "stance", True)
@@ -63,7 +63,7 @@ class TestTsundoku(unittest.TestCase):
             ).exists()
         )
 
-    def test_report(self):
+    def test_06_report(self):
         from tsundoku.report.generate import main
 
         main.callback("workers_day", "stance", 500)
